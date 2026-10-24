@@ -834,6 +834,19 @@ int LiSendControllerMotionEvent(uint8_t controllerNumber, uint8_t motionType, fl
 #define LI_BATTERY_PERCENTAGE_UNKNOWN 0xFF
 int LiSendControllerBatteryEvent(uint8_t controllerNumber, uint8_t batteryState, uint8_t batteryPercentage);
 
+// This function sends a raw HID input report from a controller to a supported host. The host
+// presents a virtual device with the same identity and feeds it the report verbatim, so games
+// and launchers see the real controller instead of an emulated gamepad. Reports include the
+// HID report ID, if the device uses them. Output reports the host's virtual device receives
+// come back through ConnListenerRawHidOutput().
+//
+// A client must not also send standard controller events for a gamepad whose raw reports it
+// forwards, or the host will see two controllers. To determine if this is supported without
+// calling it, check LiGetHostFeatureFlags() for LI_FF_RAW_HID_REPORTS.
+#define LI_MAX_RAW_HID_REPORT_SIZE 64
+int LiSendRawHidReport(uint8_t controllerNumber, uint16_t vendorId, uint16_t productId,
+                       const uint8_t* report, uint16_t reportLength);
+
 // This function queues a vertical scroll event to the remote server.
 // The number of "clicks" is multiplied by WHEEL_DELTA (120) before
 // being sent to the PC.
@@ -1016,6 +1029,7 @@ void LiRequestIdrFrame(void);
 // This function returns any extended feature flags supported by the host.
 #define LI_FF_PEN_TOUCH_EVENTS        0x01 // LiSendTouchEvent()/LiSendPenEvent() supported
 #define LI_FF_CONTROLLER_TOUCH_EVENTS 0x02 // LiSendControllerTouchEvent() supported
+#define LI_FF_RAW_HID_REPORTS   0x40000000 // LiSendRawHidReport() supported
 uint32_t LiGetHostFeatureFlags(void);
 
 #ifdef __cplusplus

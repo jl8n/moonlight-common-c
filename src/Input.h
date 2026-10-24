@@ -196,4 +196,15 @@ typedef struct _SS_CONTROLLER_BATTERY_PACKET {
     uint8_t zero[1]; // Alignment/reserved
 } SS_CONTROLLER_BATTERY_PACKET, *PSS_CONTROLLER_BATTERY_PACKET;
 
+#define SS_RAW_HID_REPORT_MAGIC 0x55000100
+typedef struct _SS_RAW_HID_REPORT_PACKET {
+    NV_INPUT_HEADER header;
+    uint8_t controllerNumber;
+    uint8_t zero[1]; // Alignment/reserved
+    uint16_t vendorId;
+    uint16_t productId;
+    uint16_t reportLength;
+    uint8_t report[LI_MAX_RAW_HID_REPORT_SIZE];
+} SS_RAW_HID_REPORT_PACKET, *PSS_RAW_HID_REPORT_PACKET;
+
 #pragma pack(pop)

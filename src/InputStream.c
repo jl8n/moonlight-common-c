@@ -72,6 +72,7 @@ typedef struct _PACKET_HOLDER {
         SS_CONTROLLER_TOUCH_PACKET controllerTouch;
         SS_CONTROLLER_MOTION_PACKET controllerMotion;
         SS_CONTROLLER_BATTERY_PACKET controllerBattery;
+        SS_RAW_HID_REPORT_PACKET rawHidReport;
         NV_UNICODE_PACKET unicode;
     } packet;
 } PACKET_HOLDER, *PPACKET_HOLDER;
@@ -1674,6 +1675,57 @@ int LiSendControllerBatteryEvent(uint8_t controllerNumber, uint8_t batteryState,
     holder->packet.controllerBattery.batteryState = batteryState;
     holder->packet.controllerBattery.batteryPercentage = batteryPercentage;
     memset(holder->packet.controllerBattery.zero, 0, sizeof(holder->packet.controllerBattery.zero));
+
+    err = LbqOfferQueueItem(&packetQueue, holder, &holder->entry);
+    if (err != LBQ_SUCCESS) {
+        LC_ASSERT(err == LBQ_BOUND_EXCEEDED);
+        Limelog("Input queue reached maximum size limit\n");
+        freePacketHolder(holder);
+    }
+
+    return err;
+}
+
+int LiSendRawHidReport(uint8_t controllerNumber, uint16_t vendorId, uint16_t productId,
+                       const uint8_t* report, uint16_t reportLength) {
+    PPACKET_HOLDER holder;
+    int err;
+
+    if (!initialized) {
+        return -2;
+    }
+
+    if (!(SunshineFeatureFlags & LI_FF_RAW_HID_REPORTS)) {
+        return LI_ERR_UNSUPPORTED;
+    }
+
+    if (reportLength == 0 || reportLength > LI_MAX_RAW_HID_REPORT_SIZE) {
+        LC_ASSERT(reportLength > 0 && reportLength <= LI_MAX_RAW_HID_REPORT_SIZE);
+        return -3;
+    }
+
+    // Sunshine supports up to 16 controllers
+    controllerNumber %= MAX_GAMEPADS;
+
+    holder = allocatePacketHolder(0);
+    if (holder == NULL) {
+        return -1;
+    }
+
+    // Each report is a full state snapshot that the next one supersedes, so send them
+    // unreliably on the controller's sensor channel rather than stalling behind a resend.
+    holder->channelId = CTRL_CHANNEL_SENSOR_BASE + controllerNumber;
+    holder->enetPacketFlags = 0;
+
+    holder->packet.rawHidReport.header.size = BE32(sizeof(SS_RAW_HID_REPORT_PACKET) - sizeof(uint32_t));
+    holder->packet.rawHidReport.header.magic = LE32(SS_RAW_HID_REPORT_MAGIC);
+    holder->packet.rawHidReport.controllerNumber = controllerNumber;
+    memset(holder->packet.rawHidReport.zero, 0, sizeof(holder->packet.rawHidReport.zero));
+    holder->packet.rawHidReport.vendorId = LE16(vendorId);
+    holder->packet.rawHidReport.productId = LE16(productId);
+    holder->packet.rawHidReport.reportLength = LE16(reportLength);
+    memcpy(holder->packet.rawHidReport.report, report, reportLength);
+    memset(holder->packet.rawHidReport.report + reportLength, 0, LI_MAX_RAW_HID_REPORT_SIZE - reportLength);
 
     err = LbqOfferQueueItem(&packetQueue, holder, &holder->entry);
     if (err != LBQ_SUCCESS) {
